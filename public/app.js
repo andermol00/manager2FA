@@ -325,8 +325,12 @@ async function saveAccount() {
     return;
   }
   try {
-    await api('/api/accounts', { method: 'POST', body });
-    toast('Cuenta agregada');
+    const d = await api('/api/accounts', { method: 'POST', body });
+    if (d && d.imported > 1) {
+      toast(`${d.imported} cuentas importadas${d.skipped ? ` · ${d.skipped} omitidas` : ''}`);
+    } else {
+      toast('Cuenta agregada');
+    }
     closeAdd();
     await refreshAccounts();
     await fetchCodes();

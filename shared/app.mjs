@@ -17,6 +17,7 @@ import {
   normalizeSecretInput,
   extractFromPastedText
 } from './totp.mjs';
+import { isMigrationText, parseMigrationAccounts } from './migration.mjs';
 import { encSecret, decSecret, makeSessionToken, parseSessionToken } from './security.mjs';
 import { loadState, saveState } from './store.mjs';
 
@@ -243,6 +244,48 @@ export async function handleApi(request, context = {}) {
         try {
           let { name, issuer, secret } = body || {};
           const cleaned = sanitizeSecret(secret);
+
+          // Exportación de Google Authenticator → importa todas las cuentas
+          if (isMigrationText(cleaned)) {
+            const list = parseMigrationAccounts(cleaned);
+            let imported = 0;
+            let skipped = 0;
+            for (const a of list) {
+              // Nuestro motor es TOTP/SHA1/6 dígitos; se omiten HOTP y variantes
+              if (a.type === 1 || a.algorithm === 2 || a.algorithm === 3 || a.digits === 2) {
+                skipped++;
+                continue;
+              }
+              state.accounts.push({
+                id: crypto.randomUUID(),
+                name: String(a.name || 'Cuenta').trim().slice(0, 60) || 'Cuenta',
+                issuer: String(a.issuer || '').trim().slice(0, 60),
+                secretEnc: encSecret(state.appSecret, a.secretB32),
+                createdAt: Date.now()
+              });
+              imported++;
+            }
+            if (imported === 0) {
+              throw new Error(
+                'El enlace no contiene cuentas TOTP compatibles (se omiten HOTP, SHA256/512 y 8 dígitos).'
+              );
+            }
+            await commit();
+            return json(
+              {
+                imported,
+                skipped,
+                accounts: state.accounts.map(({ id, name, issuer, createdAt }) => ({
+                  id,
+                  name,
+                  issuer,
+                  createdAt
+                }))
+              },
+              201
+            );
+          }
+
           const parsed = extractFromPastedText(cleaned) || parseOtpauth(cleaned);
           if (parsed) {
             secret = parsed.secret;

@@ -156,6 +156,54 @@ async function main() {
   log('URL sin clave → mensaje amigable', r.status === 400 && /URL/.test(errUrl.error || ''),
     errUrl.error);
 
+  // 11c. exportación de Google Authenticator (otpauth-migration://)
+  const vi = (n) => {
+    const out = [];
+    let v = n >>> 0;
+    do {
+      let b = v & 0x7f;
+      v >>>= 7;
+      if (v) b |= 0x80;
+      out.push(b);
+    } while (v > 0);
+    return Buffer.from(out);
+  };
+  const fld = (f, buf) => Buffer.concat([vi((f << 3) | 2), vi(buf.length), buf]);
+  const fldv = (f, n) => Buffer.concat([vi(f << 3), vi(n)]);
+  const otpP = (o) =>
+    Buffer.concat([
+      fld(1, Buffer.from(o.secret, 'utf8')),
+      fld(2, Buffer.from(o.name, 'utf8')),
+      fld(3, Buffer.from(o.issuer, 'utf8')),
+      fldv(4, o.algo ?? 1),
+      fldv(5, o.digits ?? 1),
+      fldv(6, o.type ?? 2)
+    ]);
+  const migPayload = Buffer.concat([
+    fld(1, otpP({ secret: 'Hello!\xde\xad\xbe\xef', name: 'GitHub mig', issuer: 'GitHub' })),
+    fld(1, otpP({ secret: 'AnotherSecret12', name: 'Netflix mig', issuer: 'Netflix' })),
+    fld(1, otpP({ secret: 'HotpSecret123456', name: 'Vieja', issuer: 'OTP', type: 1 })),
+    fldv(2, 1),
+    fldv(3, 3),
+    fldv(4, 0),
+    fldv(5, 123)
+  ]);
+  const migB64 = migPayload.toString('base64');
+  // pegado "sucio": salto de línea tras "?" y espacios cada 24 chars en la data
+  const migPaste =
+    'otpauth-migration://offline?\n data=' + migB64.replace(/(.{24})/g, '$1 ');
+  r = await fetch(BASE + '/api/accounts', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ name: 'Migración', secret: migPaste })
+  });
+  const mig = await r.json();
+  log(
+    'importa otpauth-migration de Google Authenticator (2 TOTP + 1 HOTP omitida)',
+    r.status === 201 && mig.imported === 2 && mig.skipped === 1,
+    `imported=${mig.imported} skipped=${mig.skipped}`
+  );
+
   // 12. QR principal (re-escaneo)
   r = await fetch(BASE + '/api/primary', { headers: auth });
   const prim = await r.json();

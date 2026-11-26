@@ -81,7 +81,7 @@ npm test         # 17 pruebas end-to-end (con el servidor corriendo)
 | POST   | `/api/logout`           | –    | Revoca la sesión                      |
 | GET    | `/api/primary`          | ✓    | QR + secreto principal (re-escaneo)   |
 | GET    | `/api/accounts`         | ✓    | Lista de cuentas (sin secretos)       |
-| POST   | `/api/accounts`         | ✓    | Agrega cuenta (clave u `otpauth://`)  |
+| POST   | `/api/accounts`         | ✓    | Agrega cuenta (clave, `otpauth://` o exportación `otpauth-migration://` de Google Authenticator) |
 | DELETE | `/api/accounts/:id`     | ✓    | Elimina cuenta                        |
 | GET    | `/api/codes`            | ✓    | Códigos TOTP + `serverTime` en vivo   |
 
