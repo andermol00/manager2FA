@@ -37,8 +37,9 @@ Google Authenticator (código principal · cuenta "Acceso")
 - Sin variables de entorno requeridas: Blobs se auto-provisiona en tu sitio.
 - Los secretos se guardan cifrados (AES-256-GCM) y **nunca** viajan al navegador
   solo para mostrar códigos.
-- Sesiones firmadas (HMAC) con revocación real al cerrar sesión, cookie
-  `HttpOnly` + token Bearer, y rate-limit de login (5 fallos → 5 min).
+- Sesiones firmadas (HMAC) de **30 días** con revocación real al cerrar sesión,
+  cookie `HttpOnly` + token Bearer (así no te vuelve a pedir el código al
+  recargar), y rate-limit de login (5 fallos → 5 min).
 
 ## 🚀 Despliegue en Netlify
 

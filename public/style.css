@@ -418,3 +418,12 @@ h2 { font-size: 17px; font-weight: 650; margin-bottom: 8px; }
   .acc-bar { grid-column: 1 / -1; }
   .code-input.big { font-size: 34px; }
 }
+
+/* Oculta el badge "Powered by Netlify" que Netlify inyecta en el plan gratuito
+   (forma oficial de quitarlo: Project configuration → General →
+   Powered by Netlify badge → Off, disponible en planes de pago). */
+#nl-badge-frame,
+.nl-badge,
+iframe[src*="/.netlify/"] {
+  display: none !important;
+}

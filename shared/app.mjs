@@ -22,7 +22,7 @@ import { encSecret, decSecret, makeSessionToken, parseSessionToken } from './sec
 import { loadState, saveState } from './store.mjs';
 
 const COOKIE = 'auth2fa_session';
-const TTL_MS = 7 * 24 * 3600 * 1000;
+const TTL_MS = 30 * 24 * 3600 * 1000; // sesión de 30 días (cámbialo a 7*24*3600*1000 para 7)
 const ISSUER = 'Authenticator 2FA';
 const LABEL = 'Acceso';
 

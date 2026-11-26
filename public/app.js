@@ -526,9 +526,14 @@ async function init() {
       showLogin();
     }
   } catch {
-    showLogin();
-    $('login-error').textContent = 'No se pudo conectar con el servidor.';
-    $('login-error').classList.remove('hidden');
+    // Sin conexión pero con sesión guardada → entra igual
+    if (token) {
+      enterApp();
+    } else {
+      showLogin();
+      $('login-error').textContent = 'No se pudo conectar con el servidor.';
+      $('login-error').classList.remove('hidden');
+    }
   }
 }
 
