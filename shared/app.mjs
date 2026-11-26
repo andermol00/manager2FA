@@ -14,7 +14,8 @@ import {
   otpauthUrl,
   parseOtpauth,
   sanitizeSecret,
-  normalizeSecretInput
+  normalizeSecretInput,
+  extractFromPastedText
 } from './totp.mjs';
 import { encSecret, decSecret, makeSessionToken, parseSessionToken } from './security.mjs';
 import { loadState, saveState } from './store.mjs';
@@ -242,7 +243,7 @@ export async function handleApi(request, context = {}) {
         try {
           let { name, issuer, secret } = body || {};
           const cleaned = sanitizeSecret(secret);
-          const parsed = parseOtpauth(cleaned);
+          const parsed = extractFromPastedText(cleaned) || parseOtpauth(cleaned);
           if (parsed) {
             secret = parsed.secret;
             name = name || parsed.name;

@@ -124,7 +124,17 @@ async function main() {
     { name: 'Basura', secret: '\u200B"Secret: JBSWY3DPEHPK3PXP"' },
     { name: 'Hex', secret: '00112233445566778899aabbccddeeff' },
     { name: 'Emisor', secret: 'GitHub: JBSWY3DPEHPK3PXP' },
-    { name: 'Base64', secret: Buffer.from('Hello!\xde\xad\xbe\xef').toString('base64') }
+    { name: 'Base64', secret: Buffer.from('Hello!\xde\xad\xbe\xef').toString('base64') },
+    { name: 'URL-con-secret', secret: 'https://panel.ejemplo.com/setup?secret=JBSWY3DPEHPK3PXP&x=1' },
+    {
+      name: 'URL-QR-chart',
+      secret: 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' +
+        encodeURIComponent('otpauth://totp/Netflix:cuenta?secret=JBSWY3DPEHPK3PXP&issuer=Netflix')
+    },
+    {
+      name: 'Multilinea-con-otpauth',
+      secret: 'Mi cuenta personal\nhttps://ejemplo.com/algo\notpauth://totp/GitHub:mi?secret=JBSWY3DPEHPK3PXP&issuer=GitHub'
+    }
   ];
   let fallos = [];
   for (const c of casos) {
@@ -134,8 +144,17 @@ async function main() {
     });
     if (r.status !== 201) fallos.push(`${c.name}: ${(await r.json()).error}`);
   }
-  log('normaliza pegados (invisibles/comillas/etiqueta, hex, base64)', fallos.length === 0,
+  log('extrae la clave de pegados raros (hex, base64, URLs con secret/chl, otpauth oculto)', fallos.length === 0,
     fallos.length === 0 ? `${casos.length}/${casos.length} OK` : fallos.join(' | '));
+
+  // URL sin clave dentro → error amigable que lo explica
+  r = await fetch(BASE + '/api/accounts', {
+    method: 'POST', headers: auth,
+    body: JSON.stringify({ name: 'Página', secret: 'https://ejemplo.com/pagina?x=9%20-1' })
+  });
+  const errUrl = await r.json();
+  log('URL sin clave → mensaje amigable', r.status === 400 && /URL/.test(errUrl.error || ''),
+    errUrl.error);
 
   // 12. QR principal (re-escaneo)
   r = await fetch(BASE + '/api/primary', { headers: auth });

@@ -56,6 +56,65 @@ export function normalizeSecretInput(input) {
   return s;
 }
 
+/**
+ * Extrae la clave de textos "sucios": un enlace otpauth:// en cualquier parte,
+ * o una URL que lleve la clave dentro (parámetro secret, chl de un QR, etc.).
+ * Devuelve { secret, issuer, name } o null si no hay nada que extraer.
+ */
+export function extractFromPastedText(input) {
+  const s = String(input ?? '').replace(/&amp;/gi, '&');
+
+  // 1) enlace otpauth:// aparezca donde aparezca (etiquetas, saltos de línea…)
+  const m = s.match(/otpauth:\/\/[^\s"'<>]+/i);
+  if (m) {
+    try {
+      const p = parseOtpauth(m[0].replace(/[).,;]+$/, ''));
+      if (p && p.secret) return p;
+    } catch { /* continúa */ }
+  }
+
+  // 2) ¿es una URL http(s) con la clave dentro?
+  const trimmed = s.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const direct = u.searchParams.get('secret');
+      if (direct && direct.trim()) {
+        return {
+          secret: direct.trim(),
+          issuer: u.searchParams.get('issuer') || '',
+          name: ''
+        };
+      }
+      const chl = u.searchParams.get('chl'); // URLs tipo Google Charts que generan el QR
+      if (chl) {
+        let inner = chl;
+        try {
+          inner = decodeURIComponent(chl);
+        } catch { /* ya decodificada */ }
+        const im = inner.match(/otpauth:\/\/[^\s"'<>]+/i);
+        if (im) {
+          try {
+            const p = parseOtpauth(im[0].replace(/[).,;]+$/, ''));
+            if (p && p.secret) return p;
+          } catch { /* continúa */ }
+        }
+        if (looksLikeBase32(inner)) return { secret: inner.trim(), issuer: '', name: '' };
+      }
+      for (const k of ['key', 'token', 'otp', 'totp']) {
+        const v = u.searchParams.get(k);
+        if (v && looksLikeBase32(v)) return { secret: v.trim(), issuer: '', name: '' };
+      }
+    } catch { /* no era una URL parseable */ }
+  }
+  return null;
+}
+
+function looksLikeBase32(v) {
+  const cleaned = String(v).trim().replace(/[\s-]/g, '').replace(/=+$/g, '');
+  return cleaned.length >= 16 && /^[A-Za-z2-7]+$/.test(cleaned);
+}
+
 export function base32Decode(input) {
   const s = sanitizeSecret(input).replace(/[\s-]/g, '').replace(/=+$/g, '').toUpperCase();
   const bad = [...new Set([...s].filter((ch) => !B32.includes(ch)))];
@@ -64,7 +123,11 @@ export function base32Decode(input) {
       .map((c) => (/[\x20-\x7E]/.test(c) ? `"${c}"` : `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`))
       .join(', ');
     let msg = `Clave secreta inválida: caracteres no permitidos ${show}. Usa solo A-Z y 2-7.`;
-    if (/[0189]/.test(s)) {
+    if (/https?:\/\/|www\.|otpauth:/i.test(String(input ?? ''))) {
+      msg =
+        'Eso parece una URL, no una clave. Copia la clave secreta (base32) o el enlace completo que empieza con "otpauth://". ' +
+        msg;
+    } else if (/[0189]/.test(s)) {
       msg += ' Si tu servicio muestra 0/1/8/9, prueba sustituirlos por O/I/B/G.';
     }
     throw new Error(msg);
@@ -132,7 +195,7 @@ export function otpauthUrl(secret, issuer = 'Authenticator 2FA', label = 'Acceso
 }
 
 export function parseOtpauth(input) {
-  const s = String(input || '').trim();
+  const s = String(input || '').trim().replace(/&amp;/gi, '&');
   if (!/^otpauth:\/\//i.test(s)) return null;
   let u;
   try {
