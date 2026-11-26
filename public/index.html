@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Authenticator 2FA · Códigos secundarios</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+</head>
+<body>
+  <div class="bg-glow g1"></div>
+  <div class="bg-glow g2"></div>
+
+  <!-- ============ SETUP: código principal ============ -->
+  <section id="screen-setup" class="screen hidden">
+    <div class="card">
+      <div class="brand"><span class="brand-icon">🔐</span> Authenticator 2FA</div>
+      <h1>Configura tu código principal</h1>
+      <p class="muted">Escanea este QR con <b>Google Authenticator</b>. Ese será tu <b>código principal</b> para entrar; aquí guardarás todos tus <b>códigos secundarios</b>.</p>
+
+      <div class="qr-wrap">
+        <img id="setup-qr" alt="QR de configuración principal">
+      </div>
+
+      <div class="secret-row">
+        <code id="setup-secret">······</code>
+        <button class="btn ghost" id="btn-copy-secret" type="button">Copiar</button>
+      </div>
+      <p class="muted small">Nombre en Google Authenticator: <b>Authenticator 2FA · Acceso</b></p>
+
+      <div class="divider"></div>
+
+      <label class="field-label" for="setup-code">Confirma con el código de 6 dígitos</label>
+      <div class="code-row">
+        <input id="setup-code" class="code-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+        <button class="btn primary" id="btn-confirm-setup" type="button">Activar acceso</button>
+      </div>
+      <p class="error hidden" id="setup-error"></p>
+    </div>
+  </section>
+
+  <!-- ============ LOGIN ============ -->
+  <section id="screen-login" class="screen hidden">
+    <div class="card narrow">
+      <div class="brand"><span class="brand-icon">🔐</span> Authenticator 2FA</div>
+      <h1>Bienvenido</h1>
+      <p class="muted">Ingresa el código de 6 dígitos de la cuenta <b>Acceso</b> (Autenticator 2FA) desde tu Google Authenticator.</p>
+
+      <input id="login-code" class="code-input big" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+      <button class="btn primary wide" id="btn-login" type="button">Entrar</button>
+      <p class="error hidden" id="login-error"></p>
+      <p class="muted small center">🔒 Tus claves se guardan cifradas y solo el servidor calcula tus códigos.</p>
+    </div>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <section id="screen-app" class="screen hidden">
+    <header class="app-header">
+      <div class="brand"><span class="brand-icon">🔐</span> Authenticator 2FA</div>
+      <div class="header-actions">
+        <button class="btn primary" id="btn-show-add" type="button">＋ Agregar</button>
+        <button class="btn ghost" id="btn-show-primary" type="button">QR principal</button>
+        <button class="btn ghost" id="btn-logout" type="button">Salir</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Agregar cuenta -->
+      <div class="card panel hidden" id="panel-add">
+        <h2>Agregar cuenta secundaria</h2>
+        <div class="form-grid">
+          <label class="field">Nombre
+            <input id="acc-name" type="text" placeholder="Mi cuenta" maxlength="60">
+          </label>
+          <label class="field">Emisor (opcional)
+            <input id="acc-issuer" type="text" placeholder="GitHub, Netflix…" maxlength="60">
+          </label>
+        </div>
+        <label class="field">Clave secreta (base32) o enlace <code>otpauth://</code>
+          <textarea id="acc-secret" rows="3" placeholder="JBSWY3DPEHPK3PXP…"></textarea>
+        </label>
+        <div class="row">
+          <button class="btn primary" id="btn-save-acc" type="button">Guardar</button>
+          <button class="btn" id="btn-scan" type="button">📷 Escanear QR</button>
+          <button class="btn ghost" id="btn-cancel-add" type="button">Cancelar</button>
+        </div>
+        <p class="error hidden" id="add-error"></p>
+      </div>
+
+      <!-- QR principal -->
+      <div class="card panel hidden" id="panel-primary">
+        <h2>Tu código principal (entrada)</h2>
+        <p class="muted">Escanealo de nuevo si cambias de teléfono. En Google Authenticator aparece como <b>Acceso</b> bajo <b>Authenticator 2FA</b>.</p>
+        <div class="qr-wrap small"><img id="primary-qr" alt="QR principal"></div>
+        <div class="secret-row">
+          <code id="primary-secret">······</code>
+          <button class="btn ghost" id="btn-copy-primary" type="button">Copiar</button>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="btn-close-primary" type="button">Cerrar</button>
+        </div>
+      </div>
+
+      <div id="accounts" class="accounts"></div>
+
+      <div class="empty hidden" id="empty">
+        <div class="empty-icon">🗂️</div>
+        <p>Aún no tienes códigos secundarios.</p>
+        <button class="btn primary" id="btn-empty-add" type="button">＋ Agregar tu primera cuenta</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- ============ MODAL CÁMARA ============ -->
+  <div class="modal hidden" id="modal-scan">
+    <div class="modal-card">
+      <h2>Escanea el QR de 2FA</h2>
+      <div class="video-wrap">
+        <video id="scan-video" autoplay playsinline muted></video>
+        <div class="scan-frame"></div>
+      </div>
+      <p class="muted small center" id="scan-status">Apunta al código QR…</p>
+      <div class="row center">
+        <button class="btn ghost" id="btn-cancel-scan" type="button">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="vendor/jsQR.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
