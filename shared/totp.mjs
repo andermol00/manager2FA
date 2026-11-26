@@ -4,15 +4,77 @@ import crypto from 'node:crypto';
 
 export const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-export function base32Decode(str) {
-  const s = String(str).replace(/[\s-]/g, '').replace(/=+$/g, '').toUpperCase();
-  if (s.length < 16) throw new Error('La clave secreta es demasiado corta.');
+/** Quita basura típica de copiar-pegar: invisibles, comillas y etiquetas. */
+export function sanitizeSecret(input) {
+  let s = String(input ?? '');
+  // zero-width, soft hyphen, BOM y espacios no separables
+  s = s.replace(/[\u200B-\u200D\u2060\uFEFF\u00AD\u00A0]/g, '');
+  // comillas y espacios en los extremos
+  s = s.replace(/^[`'"\s]+|[`'"\s]+$/g, '');
+  // prefijos tipo "Secret:", "Clave:", "Base32:"
+  const m = s.match(/^(?:secret|clave|c[oó]digo|key|base32|token)\s*[:=-]\s*(.+)$/is);
+  if (m) s = m[1].trim();
+  return s.trim();
+}
+
+/**
+ * Normaliza lo que el usuario pega a base32 estándar:
+ *  - "Emisor: CLAVE"  → CLAVE
+ *  - secreto en hex    → base32
+ *  - secreto en base64 → base32
+ */
+export function normalizeSecretInput(input) {
+  let s = sanitizeSecret(input);
+
+  // Etiqueta con dos puntos delante de la clave
+  const ci = s.lastIndexOf(':');
+  if (ci > -1) {
+    const tail = s.slice(ci + 1).trim();
+    const cleaned = tail.replace(/[\s-]/g, '');
+    if (cleaned.length >= 16 && /^[A-Za-z0-9+/=]+$/.test(cleaned)) s = tail;
+  }
+
+  // Hex (32/40/64 chars = 16/20/32 bytes). Solo si trae 0/1/8/9:
+  // esos caracteres no existen en base32 válido, así no hay ambigüedad.
+  const compact = s.replace(/\s+/g, '');
+  if (
+    /^[0-9a-fA-F]+$/.test(compact) &&
+    (compact.length === 32 || compact.length === 40 || compact.length === 64) &&
+    /[0189]/.test(compact)
+  ) {
+    return base32Encode(Buffer.from(compact, 'hex'));
+  }
+
+  // Base64 (contiene + o /, algo que el base32 nunca tiene)
+  if (/^[A-Za-z0-9+/=\s]+$/.test(s) && /[+/]/.test(s)) {
+    try {
+      const buf = Buffer.from(s.replace(/\s+/g, ''), 'base64');
+      if (buf.length >= 10) return base32Encode(buf);
+    } catch { /* se queda como estaba */ }
+  }
+
+  return s;
+}
+
+export function base32Decode(input) {
+  const s = sanitizeSecret(input).replace(/[\s-]/g, '').replace(/=+$/g, '').toUpperCase();
+  const bad = [...new Set([...s].filter((ch) => !B32.includes(ch)))];
+  if (bad.length) {
+    const show = bad
+      .map((c) => (/[\x20-\x7E]/.test(c) ? `"${c}"` : `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`))
+      .join(', ');
+    let msg = `Clave secreta inválida: caracteres no permitidos ${show}. Usa solo A-Z y 2-7.`;
+    if (/[0189]/.test(s)) {
+      msg += ' Si tu servicio muestra 0/1/8/9, prueba sustituirlos por O/I/B/G.';
+    }
+    throw new Error(msg);
+  }
+  if (s.length < 16) throw new Error('La clave secreta es demasiado corta (mínimo 16 caracteres).');
   let bits = 0;
   let value = 0;
   const out = [];
   for (const ch of s) {
     const idx = B32.indexOf(ch);
-    if (idx === -1) throw new Error('Clave secreta inválida (usa A-Z y 2-7).');
     value = (value << 5) | idx;
     bits += 5;
     if (bits >= 8) {
@@ -20,7 +82,7 @@ export function base32Decode(str) {
       bits -= 8;
     }
   }
-  if (out.length < 10) throw new Error('La clave secreta es demasiado corta.');
+  if (out.length < 10) throw new Error('La clave secreta es demasiado corta (mínimo 16 caracteres).');
   return Buffer.from(out);
 }
 

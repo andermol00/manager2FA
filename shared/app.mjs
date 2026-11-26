@@ -12,7 +12,9 @@ import {
   totp,
   verifyCode,
   otpauthUrl,
-  parseOtpauth
+  parseOtpauth,
+  sanitizeSecret,
+  normalizeSecretInput
 } from './totp.mjs';
 import { encSecret, decSecret, makeSessionToken, parseSessionToken } from './security.mjs';
 import { loadState, saveState } from './store.mjs';
@@ -239,11 +241,14 @@ export async function handleApi(request, context = {}) {
         if (denied !== true) return denied;
         try {
           let { name, issuer, secret } = body || {};
-          const parsed = parseOtpauth(secret);
+          const cleaned = sanitizeSecret(secret);
+          const parsed = parseOtpauth(cleaned);
           if (parsed) {
             secret = parsed.secret;
             name = name || parsed.name;
             issuer = issuer || parsed.issuer;
+          } else {
+            secret = normalizeSecretInput(cleaned);
           }
           const keyBuf = base32Decode(secret); // valida
           secret = base32Encode(keyBuf); // normaliza

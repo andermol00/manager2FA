@@ -119,6 +119,24 @@ async function main() {
   log('GET /api/codes genera TOTP válidos', okCodes,
     `codes=${codes.codes.map(c => c.code).join(',')} esperado=${esperado} left=${codes.left}`);
 
+  // 11b. normalización de pegados difíciles
+  const casos = [
+    { name: 'Basura', secret: '\u200B"Secret: JBSWY3DPEHPK3PXP"' },
+    { name: 'Hex', secret: '00112233445566778899aabbccddeeff' },
+    { name: 'Emisor', secret: 'GitHub: JBSWY3DPEHPK3PXP' },
+    { name: 'Base64', secret: Buffer.from('Hello!\xde\xad\xbe\xef').toString('base64') }
+  ];
+  let fallos = [];
+  for (const c of casos) {
+    r = await fetch(BASE + '/api/accounts', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ name: c.name, secret: c.secret })
+    });
+    if (r.status !== 201) fallos.push(`${c.name}: ${(await r.json()).error}`);
+  }
+  log('normaliza pegados (invisibles/comillas/etiqueta, hex, base64)', fallos.length === 0,
+    fallos.length === 0 ? `${casos.length}/${casos.length} OK` : fallos.join(' | '));
+
   // 12. QR principal (re-escaneo)
   r = await fetch(BASE + '/api/primary', { headers: auth });
   const prim = await r.json();
